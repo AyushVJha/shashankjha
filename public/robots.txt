@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://shashankjha.in
+
+# Sitemaps
+Sitemap: https://shashankjha.in/sitemap.xml
