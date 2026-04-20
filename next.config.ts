@@ -21,6 +21,9 @@ const cspDirectives: string[] = [
 const nextConfig: NextConfig = {
   reactCompiler: true,
   poweredByHeader: false,
+  env: {
+    NEXT_PUBLIC_SENTRY_DSN: process.env.SENTRY_DSN || "",
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "img.youtube.com" },
