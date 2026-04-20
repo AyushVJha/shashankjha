@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NewsletterSignup from "./NewsletterSignup";
 
 const links = [
   { label: "About", href: "#about", external: false },
@@ -36,6 +37,10 @@ export default function Footer() {
               </li>
             ))}
           </ul>
+
+          <div className="w-16 h-[1px] bg-[var(--gold)] opacity-30" />
+
+          <NewsletterSignup source="footer" />
 
           <div className="w-16 h-[1px] bg-[var(--gold)] opacity-30" />
 
