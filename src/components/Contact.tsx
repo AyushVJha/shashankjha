@@ -3,13 +3,12 @@
 import { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { contactSchema, PURPOSES, type ContactInput } from "@/lib/schemas/contact";
 
-const purposes = [
-  "Legal Consultation",
-  "General Inquiry",
-  "Media / Interview",
-  "Collaboration",
-];
+type SuccessResponse = { ok: true; id: string; requestId: string };
+type ErrorResponse = { ok: false; error: string; field?: string; requestId: string };
 
 const contactLinks = [
   { label: "Email", value: "contact@shashankjha.in", href: "mailto:contact@shashankjha.in" },
@@ -18,59 +17,73 @@ const contactLinks = [
   { label: "The Chambers of SSJ", value: "A-57, 2nd Floor, Amar Colony, Lajpat Nagar IV, New Delhi 110024", href: "https://www.google.com/maps/search/The+Chambers+of+SSJ+Delhi" },
 ];
 
+const honeypotStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "-9999px",
+  width: 1,
+  height: 1,
+  opacity: 0,
+  pointerEvents: "none",
+};
+
 export default function Contact() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
-  const [formState, setFormState] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    purpose: "",
-    message: "",
-    honeypot: "",
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<ContactInput>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      purpose: undefined,
+      subject: "",
+      message: "",
+      website: "",
+    },
+    mode: "onBlur",
   });
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [serverError, setServerError] = useState<{ message: string; requestId?: string } | null>(null);
+  const [successRequestId, setSuccessRequestId] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.honeypot) return;
-
-    setFormState("loading");
-    setErrorMsg("");
+  const onSubmit = handleSubmit(async (values) => {
+    setStatus("idle");
+    setServerError(null);
 
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          purpose: formData.purpose,
-          message: formData.message,
-        }),
+        body: JSON.stringify(values),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as SuccessResponse | ErrorResponse;
 
-      if (!res.ok) {
-        throw new Error(data.error || "Something went wrong");
+      if (!res.ok || !data.ok) {
+        const err = data as ErrorResponse;
+        setStatus("error");
+        setServerError({ message: err.error, requestId: err.requestId });
+        return;
       }
 
-      setFormState("success");
-      setFormData({ name: "", email: "", phone: "", purpose: "", message: "", honeypot: "" });
-    } catch (err) {
-      setFormState("error");
-      setErrorMsg(err instanceof Error ? err.message : "An error occurred. Please try again.");
+      setStatus("success");
+      setSuccessRequestId(data.requestId);
+      reset();
+    } catch {
+      setStatus("error");
+      setServerError({
+        message:
+          "Network error. Please check your connection and try again, or email contact@shashankjha.in directly.",
+      });
     }
-  };
+  });
 
   return (
     <section ref={ref} id="contact-section" className="section-padding" style={{ background: "linear-gradient(180deg, var(--bg-cream) 0%, var(--bg-warm) 100%)" }}>
@@ -143,80 +156,95 @@ export default function Contact() {
 
           {/* Right — Form */}
           <motion.form
-            onSubmit={handleSubmit}
+            onSubmit={onSubmit}
+            noValidate
             initial={{ opacity: 0, y: 24 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.2 }}
             className="space-y-6 bg-white border border-[var(--border)] rounded-[var(--radius-lg)] p-8 md:p-10 shadow-[var(--shadow-lg)]"
           >
-            <input
-              type="text"
-              name="honeypot"
-              value={formData.honeypot}
-              onChange={handleChange}
-              className="absolute opacity-0 pointer-events-none"
-              tabIndex={-1}
-              autoComplete="off"
-            />
+            <div aria-hidden="true" style={honeypotStyle}>
+              <label>
+                Website
+                <input
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  {...register("website")}
+                />
+              </label>
+            </div>
 
-            <input
-              type="text"
-              name="name"
-              placeholder="Your Name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              className="form-input"
-            />
+            <Field error={errors.name?.message}>
+              <input
+                type="text"
+                placeholder="Your Name"
+                aria-invalid={!!errors.name}
+                className="form-input"
+                {...register("name")}
+              />
+            </Field>
 
-            <input
-              type="email"
-              name="email"
-              placeholder="Your Email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="form-input"
-            />
+            <Field error={errors.email?.message}>
+              <input
+                type="email"
+                placeholder="Your Email"
+                aria-invalid={!!errors.email}
+                className="form-input"
+                {...register("email")}
+              />
+            </Field>
 
-            <input
-              type="tel"
-              name="phone"
-              placeholder="Phone (optional)"
-              value={formData.phone}
-              onChange={handleChange}
-              className="form-input"
-            />
+            <Field error={errors.phone?.message}>
+              <input
+                type="tel"
+                placeholder="Phone (optional, E.164 e.g. +919876543210)"
+                aria-invalid={!!errors.phone}
+                className="form-input"
+                {...register("phone")}
+              />
+            </Field>
 
-            <select
-              name="purpose"
-              value={formData.purpose}
-              onChange={handleChange}
-              required
-              className="form-input"
-            >
-              <option value="" disabled>Purpose of Contact</option>
-              {purposes.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+            <Field error={errors.purpose?.message}>
+              <select
+                aria-invalid={!!errors.purpose}
+                className="form-input"
+                defaultValue=""
+                {...register("purpose")}
+              >
+                <option value="" disabled>Purpose of Contact</option>
+                {PURPOSES.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </Field>
 
-            <textarea
-              name="message"
-              placeholder="Your Message"
-              rows={4}
-              value={formData.message}
-              onChange={handleChange}
-              required
-              className="form-input resize-none"
-            />
+            <Field error={errors.subject?.message}>
+              <input
+                type="text"
+                placeholder="Subject"
+                aria-invalid={!!errors.subject}
+                className="form-input"
+                {...register("subject")}
+              />
+            </Field>
+
+            <Field error={errors.message?.message}>
+              <textarea
+                placeholder="Your Message (minimum 20 characters)"
+                rows={5}
+                aria-invalid={!!errors.message}
+                className="form-input resize-none"
+                {...register("message")}
+              />
+            </Field>
 
             <button
               type="submit"
-              disabled={formState === "loading"}
+              disabled={isSubmitting}
               className="btn-gold w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {formState === "loading" ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Sending...
@@ -226,30 +254,63 @@ export default function Contact() {
               )}
             </button>
 
-            {formState === "success" && (
+            {status === "success" && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 text-[#16a34a] text-sm font-sans font-medium"
+                className="flex flex-col gap-1 text-[#16a34a] text-sm font-sans font-medium"
               >
-                <CheckCircle className="w-4 h-4" />
-                Message sent successfully. We&apos;ll respond shortly.
+                <span className="flex items-center gap-3">
+                  <CheckCircle className="w-4 h-4" />
+                  Message received. We&apos;ll respond within 2&ndash;3 business days.
+                </span>
+                {successRequestId && (
+                  <span className="text-[var(--muted)] text-xs ml-7">
+                    Reference: {successRequestId}
+                  </span>
+                )}
               </motion.div>
             )}
 
-            {formState === "error" && (
+            {status === "error" && serverError && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 text-[#dc2626] text-sm font-sans font-medium"
+                className="flex flex-col gap-1 text-[#dc2626] text-sm font-sans font-medium"
               >
-                <AlertCircle className="w-4 h-4" />
-                {errorMsg}
+                <span className="flex items-center gap-3">
+                  <AlertCircle className="w-4 h-4" />
+                  {serverError.message}
+                </span>
+                {serverError.requestId && (
+                  <span className="text-[var(--muted)] text-xs ml-7">
+                    Reference: {serverError.requestId} — quote this if you follow up.
+                  </span>
+                )}
               </motion.div>
             )}
           </motion.form>
         </div>
       </div>
     </section>
+  );
+}
+
+function Field({
+  children,
+  error,
+}: {
+  children: React.ReactNode;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {children}
+      {error && (
+        <p className="text-[#dc2626] text-xs font-sans font-medium pl-1" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

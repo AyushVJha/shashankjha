@@ -1,160 +1,291 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { nanoid } from "nanoid";
+import { Resend } from "resend";
+import { contactSchema } from "@/lib/schemas/contact";
+import { sanitizeText } from "@/lib/sanitize";
+import { getLimiter, clientIp } from "@/lib/rate-limit";
+import { env, hasDatabase, hasResend } from "@/lib/env";
+import { db } from "@/db/client";
+import { contactSubmissions } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { CONTACT_RECIPIENT, FROM_ADDRESS } from "@/lib/email-routing";
+import ContactNotification from "@/emails/ContactNotification";
+import ContactAcknowledgement from "@/emails/ContactAcknowledgement";
+import { log } from "@/lib/logger";
+import { maskEmail } from "@/lib/mask";
 
-// Simple in-memory rate limiter
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT = 5;
-const RATE_WINDOW = 60 * 60 * 1000; // 1 hour in ms
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+const limiter = getLimiter("contact", 5, 60 * 60);
 
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
-    return false;
-  }
-
-  if (entry.count >= RATE_LIMIT) {
-    return true;
-  }
-
-  entry.count++;
-  return false;
+function formatIST(date: Date): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "full",
+    timeStyle: "long",
+  }).format(date);
 }
 
-// Input sanitization
-function sanitize(str: string): string {
-  return str
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .trim();
-}
+export async function POST(request: Request) {
+  const requestId = nanoid(12);
+  const ip = clientIp(request);
+  const userAgent = request.headers.get("user-agent") || "unknown";
 
-// Validation
-function validateEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-const VALID_PURPOSES = [
-  "General Inquiry",
-  "Legal Consultation",
-  "Media/Interview",
-  "Collaboration",
-];
-
-export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-
-    if (isRateLimited(ip)) {
+    const rl = await limiter.check(ip);
+    if (!rl.success) {
       return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
+        {
+          ok: false,
+          error: "Too many submissions. Please try again in an hour.",
+          requestId,
+        },
+        { status: 429, headers: { "retry-after": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
       );
     }
 
-    const body = await request.json();
-    const { name, email, phone, purpose, message } = body;
-
-    // Server-side validation
-    if (!name || typeof name !== "string" || name.trim().length < 2) {
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
       return NextResponse.json(
-        { error: "Name is required and must be at least 2 characters." },
+        { ok: false, error: "Invalid JSON body", requestId },
         { status: 400 }
       );
     }
 
-    if (!email || typeof email !== "string" || !validateEmail(email)) {
+    const parsed = contactSchema.safeParse(raw);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
       return NextResponse.json(
-        { error: "A valid email address is required." },
+        {
+          ok: false,
+          error: first?.message || "Invalid input",
+          field: first?.path.join(".") || undefined,
+          requestId,
+        },
         { status: 400 }
       );
     }
 
-    if (!purpose || !VALID_PURPOSES.includes(purpose)) {
-      return NextResponse.json(
-        { error: "Please select a valid purpose." },
-        { status: 400 }
-      );
+    const input = parsed.data;
+
+    if (input.website && input.website.length > 0) {
+      log.warn("contact.honeypot_triggered", { requestId, ip });
+      return NextResponse.json({ ok: true, id: requestId, requestId });
     }
 
-    if (!message || typeof message !== "string" || message.trim().length < 20) {
-      return NextResponse.json(
-        { error: "Message must be at least 20 characters." },
-        { status: 400 }
-      );
-    }
-
-    // Sanitize inputs
-    const sanitizedData = {
-      name: sanitize(name),
-      email: sanitize(email),
-      phone: phone ? sanitize(phone) : "Not provided",
-      purpose: sanitize(purpose),
-      message: sanitize(message),
+    const cleaned = {
+      name: sanitizeText(input.name),
+      email: input.email.trim().toLowerCase(),
+      phone: input.phone && input.phone.trim() ? sanitizeText(input.phone).replace(/[\s-]/g, "") : null,
+      purpose: input.purpose,
+      subject: sanitizeText(input.subject),
+      message: sanitizeText(input.message),
     };
 
-    // Send email via Resend
-    const resendApiKey = process.env.RESEND_API_KEY;
-
-    if (resendApiKey) {
-      const { Resend } = await import("resend");
-      const resend = new Resend(resendApiKey);
-
-      await resend.emails.send({
-        from: "Contact Form <onboarding@resend.dev>",
-        to: "shashankjha.mail@gmail.com",
-        subject: `[Website] ${sanitizedData.purpose} from ${sanitizedData.name}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #C41E3A;">New Contact Form Submission</h2>
-            <hr style="border: 1px solid #eee;" />
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #333;">Name:</td>
-                <td style="padding: 8px 0; color: #555;">${sanitizedData.name}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #333;">Email:</td>
-                <td style="padding: 8px 0; color: #555;">${sanitizedData.email}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #333;">Phone:</td>
-                <td style="padding: 8px 0; color: #555;">${sanitizedData.phone}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #333;">Purpose:</td>
-                <td style="padding: 8px 0; color: #555;">${sanitizedData.purpose}</td>
-              </tr>
-            </table>
-            <h3 style="color: #333; margin-top: 20px;">Message:</h3>
-            <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; color: #555; line-height: 1.6;">
-              ${sanitizedData.message}
-            </div>
-            <hr style="border: 1px solid #eee; margin-top: 24px;" />
-            <p style="color: #999; font-size: 12px;">
-              Sent from shashankjha.in contact form
-            </p>
-          </div>
-        `,
-      });
+    let submissionId: string | null = null;
+    if (hasDatabase) {
+      try {
+        const rows = await db()
+          .insert(contactSubmissions)
+          .values({
+            name: cleaned.name,
+            email: cleaned.email,
+            phone: cleaned.phone,
+            purpose: cleaned.purpose,
+            subject: cleaned.subject,
+            message: cleaned.message,
+            ip,
+            userAgent,
+            requestId,
+          })
+          .returning({ id: contactSubmissions.id });
+        submissionId = rows[0]?.id ?? null;
+      } catch (err) {
+        log.error("contact.db_insert_failed", {
+          requestId,
+          error: err instanceof Error ? err.message : String(err),
+          emailMasked: maskEmail(cleaned.email),
+        });
+      }
     } else {
-      // Log to console if no Resend API key (development fallback)
-      console.log("Contact form submission (no RESEND_API_KEY set):", sanitizedData);
+      log.warn("contact.db_disabled", { requestId });
     }
 
-    return NextResponse.json({ success: true, message: "Message sent successfully!" });
-  } catch (error) {
-    console.error("Contact form error:", error);
+    let emailMessageId: string | null = null;
+    if (hasResend) {
+      try {
+        const resend = new Resend(env.RESEND_API_KEY!);
+        const timestampIST = formatIST(new Date());
+
+        const notification = await resend.emails.send({
+          from: FROM_ADDRESS,
+          to: CONTACT_RECIPIENT,
+          replyTo: cleaned.email,
+          subject: `[${cleaned.purpose}] ${cleaned.subject} — ${cleaned.name}`,
+          react: ContactNotification({
+            name: cleaned.name,
+            email: cleaned.email,
+            phone: cleaned.phone || undefined,
+            purpose: cleaned.purpose,
+            subject: cleaned.subject,
+            message: cleaned.message,
+            timestampIST,
+            ip,
+            userAgent,
+            requestId,
+          }),
+          text: buildNotificationText({
+            ...cleaned,
+            phone: cleaned.phone,
+            timestampIST,
+            ip,
+            userAgent,
+            requestId,
+          }),
+          headers: { "X-Request-Id": requestId },
+        });
+
+        if (notification.error) {
+          throw new Error(notification.error.message);
+        }
+        emailMessageId = notification.data?.id ?? null;
+
+        await resend.emails.send({
+          from: FROM_ADDRESS,
+          to: cleaned.email,
+          replyTo: CONTACT_RECIPIENT,
+          subject: "We've received your message — The Chambers of SSJ",
+          react: ContactAcknowledgement({
+            name: cleaned.name,
+            purpose: cleaned.purpose,
+            subject: cleaned.subject,
+            requestId,
+          }),
+          text: buildAckText({
+            name: cleaned.name,
+            purpose: cleaned.purpose,
+            subject: cleaned.subject,
+            requestId,
+          }),
+          headers: { "X-Request-Id": requestId },
+        });
+      } catch (err) {
+        log.error("contact.email_send_failed", {
+          requestId,
+          error: err instanceof Error ? err.message : String(err),
+          emailMasked: maskEmail(cleaned.email),
+        });
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "We couldn't deliver your message right now. Please email contact@shashankjha.in directly, or try again shortly.",
+            requestId,
+          },
+          { status: 502 }
+        );
+      }
+    } else {
+      log.warn("contact.resend_disabled", { requestId });
+    }
+
+    if (submissionId && emailMessageId && hasDatabase) {
+      try {
+        await db()
+          .update(contactSubmissions)
+          .set({ emailMessageId })
+          .where(eq(contactSubmissions.id, submissionId));
+      } catch (err) {
+        log.error("contact.db_update_failed", {
+          requestId,
+          submissionId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    log.info("contact.received", {
+      requestId,
+      purpose: cleaned.purpose,
+      emailMasked: maskEmail(cleaned.email),
+      persisted: Boolean(submissionId),
+      emailed: Boolean(emailMessageId),
+    });
+
+    return NextResponse.json({
+      ok: true,
+      id: submissionId ?? requestId,
+      requestId,
+    });
+  } catch (err) {
+    log.error("contact.unhandled", {
+      requestId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json(
-      { error: "An unexpected error occurred. Please try again." },
+      {
+        ok: false,
+        error: "An unexpected error occurred. Please try again shortly.",
+        requestId,
+      },
       { status: 500 }
     );
   }
+}
+
+function buildNotificationText(d: {
+  name: string;
+  email: string;
+  phone: string | null;
+  purpose: string;
+  subject: string;
+  message: string;
+  timestampIST: string;
+  ip: string;
+  userAgent: string;
+  requestId: string;
+}) {
+  return [
+    "New contact form submission",
+    `Received: ${d.timestampIST}`,
+    "",
+    `Purpose: ${d.purpose}`,
+    `Name:    ${d.name}`,
+    `Email:   ${d.email}`,
+    `Phone:   ${d.phone || "—"}`,
+    `Subject: ${d.subject}`,
+    "",
+    "Message:",
+    d.message,
+    "",
+    `Request ID: ${d.requestId}`,
+    `IP: ${d.ip}`,
+    `User-Agent: ${d.userAgent}`,
+  ].join("\n");
+}
+
+function buildAckText(d: {
+  name: string;
+  purpose: string;
+  subject: string;
+  requestId: string;
+}) {
+  return [
+    `Dear ${d.name},`,
+    "",
+    `We've received your ${d.purpose.toLowerCase()} regarding "${d.subject}" and it is now with our team.`,
+    "",
+    "You can expect a response within 2–3 business days. For time-sensitive legal matters, please mention urgency in a follow-up reply.",
+    "",
+    "This is an automated acknowledgement — no action is required from you.",
+    "",
+    "Warm regards,",
+    "The Chambers of SSJ",
+    "A-57, 2nd Floor, Amar Colony, Lajpat Nagar IV, New Delhi 110024",
+    "",
+    `Reference: ${d.requestId}`,
+  ].join("\n");
 }
