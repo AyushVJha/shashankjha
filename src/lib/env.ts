@@ -34,6 +34,16 @@ function load(): Env {
 
   const data = parsed.data;
 
+  const redisFields = [
+    data.UPSTASH_REDIS_REST_URL,
+    data.UPSTASH_REDIS_REST_TOKEN,
+  ].filter(Boolean);
+  if (redisFields.length > 0 && redisFields.length < 2) {
+    throw new Error(
+      "UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must either both be set or both be omitted"
+    );
+  }
+
   if (data.NODE_ENV === "production") {
     const required: Array<keyof Env> = [
       "RESEND_API_KEY",

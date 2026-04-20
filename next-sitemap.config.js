@@ -10,6 +10,7 @@ module.exports = {
       {
         userAgent: "*",
         allow: "/",
+        disallow: ["/api/health"],
       },
     ],
     additionalSitemaps: [],

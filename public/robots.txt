@@ -1,6 +1,7 @@
 # *
 User-agent: *
 Allow: /
+Disallow: /api/health
 
 # Host
 Host: https://shashankjha.in

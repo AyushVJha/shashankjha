@@ -43,7 +43,7 @@ async function sendConfirmation(email: string, confirmToken: string, unsubscribe
 }
 
 export async function POST(request: Request) {
-  const requestId = nanoid(12);
+  const requestId = request.headers.get("x-request-id") || nanoid(12);
   const ip = clientIp(request);
 
   try {
@@ -81,6 +81,21 @@ export async function POST(request: Request) {
 
     const email = parsed.data.email.trim().toLowerCase();
     const source = parsed.data.source || "footer";
+
+    if (!hasResend) {
+      log.error("newsletter.resend_missing", {
+        requestId,
+        emailMasked: maskEmail(email),
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Newsletter is temporarily unavailable. Please try again later.",
+          requestId,
+        },
+        { status: 503 }
+      );
+    }
 
     if (!hasDatabase) {
       log.error("newsletter.db_disabled", { requestId });
@@ -125,26 +140,22 @@ export async function POST(request: Request) {
       });
     }
 
-    if (hasResend) {
-      try {
-        await sendConfirmation(email, confirmToken, unsubscribeToken);
-      } catch (err) {
-        log.error("newsletter.email_send_failed", {
+    try {
+      await sendConfirmation(email, confirmToken, unsubscribeToken);
+    } catch (err) {
+      log.error("newsletter.email_send_failed", {
+        requestId,
+        error: err instanceof Error ? err.message : String(err),
+        emailMasked: maskEmail(email),
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "We couldn't send the confirmation email. Please try again shortly.",
           requestId,
-          error: err instanceof Error ? err.message : String(err),
-          emailMasked: maskEmail(email),
-        });
-        return NextResponse.json(
-          {
-            ok: false,
-            error: "We couldn't send the confirmation email. Please try again shortly.",
-            requestId,
-          },
-          { status: 502 }
-        );
-      }
-    } else {
-      log.warn("newsletter.resend_disabled", { requestId });
+        },
+        { status: 502 }
+      );
     }
 
     log.info("newsletter.subscribe_sent", { requestId, emailMasked: maskEmail(email), source });

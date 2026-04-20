@@ -28,7 +28,7 @@ function formatIST(date: Date): string {
 }
 
 export async function POST(request: Request) {
-  const requestId = nanoid(12);
+  const requestId = request.headers.get("x-request-id") || nanoid(12);
   const ip = clientIp(request);
   const userAgent = request.headers.get("user-agent") || "unknown";
 
@@ -79,11 +79,30 @@ export async function POST(request: Request) {
     const cleaned = {
       name: sanitizeText(input.name),
       email: input.email.trim().toLowerCase(),
-      phone: input.phone && input.phone.trim() ? sanitizeText(input.phone).replace(/[\s-]/g, "") : null,
+      phone:
+        input.phone && input.phone.trim()
+          ? sanitizeText(input.phone).replace(/[\s-]/g, "")
+          : null,
       purpose: input.purpose,
       subject: sanitizeText(input.subject),
       message: sanitizeText(input.message),
     };
+
+    if (!hasResend) {
+      log.error("contact.resend_missing", {
+        requestId,
+        emailMasked: maskEmail(cleaned.email),
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "The contact form is temporarily unavailable. Please email contact@shashankjha.in directly.",
+          requestId,
+        },
+        { status: 503 }
+      );
+    }
 
     let submissionId: string | null = null;
     if (hasDatabase) {
@@ -115,81 +134,77 @@ export async function POST(request: Request) {
     }
 
     let emailMessageId: string | null = null;
-    if (hasResend) {
-      try {
-        const resend = new Resend(env.RESEND_API_KEY!);
-        const timestampIST = formatIST(new Date());
+    try {
+      const resend = new Resend(env.RESEND_API_KEY!);
+      const timestampIST = formatIST(new Date());
 
-        const notification = await resend.emails.send({
-          from: FROM_ADDRESS,
-          to: CONTACT_RECIPIENT,
-          replyTo: cleaned.email,
-          subject: `[${cleaned.purpose}] ${cleaned.subject} — ${cleaned.name}`,
-          react: ContactNotification({
-            name: cleaned.name,
-            email: cleaned.email,
-            phone: cleaned.phone || undefined,
-            purpose: cleaned.purpose,
-            subject: cleaned.subject,
-            message: cleaned.message,
-            timestampIST,
-            ip,
-            userAgent,
-            requestId,
-          }),
-          text: buildNotificationText({
-            ...cleaned,
-            phone: cleaned.phone,
-            timestampIST,
-            ip,
-            userAgent,
-            requestId,
-          }),
-          headers: { "X-Request-Id": requestId },
-        });
-
-        if (notification.error) {
-          throw new Error(notification.error.message);
-        }
-        emailMessageId = notification.data?.id ?? null;
-
-        await resend.emails.send({
-          from: FROM_ADDRESS,
-          to: cleaned.email,
-          replyTo: CONTACT_RECIPIENT,
-          subject: "We've received your message — The Chambers of SSJ",
-          react: ContactAcknowledgement({
-            name: cleaned.name,
-            purpose: cleaned.purpose,
-            subject: cleaned.subject,
-            requestId,
-          }),
-          text: buildAckText({
-            name: cleaned.name,
-            purpose: cleaned.purpose,
-            subject: cleaned.subject,
-            requestId,
-          }),
-          headers: { "X-Request-Id": requestId },
-        });
-      } catch (err) {
-        log.error("contact.email_send_failed", {
+      const notification = await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: CONTACT_RECIPIENT,
+        replyTo: cleaned.email,
+        subject: `[${cleaned.purpose}] ${cleaned.subject} — ${cleaned.name}`,
+        react: ContactNotification({
+          name: cleaned.name,
+          email: cleaned.email,
+          phone: cleaned.phone || undefined,
+          purpose: cleaned.purpose,
+          subject: cleaned.subject,
+          message: cleaned.message,
+          timestampIST,
+          ip,
+          userAgent,
           requestId,
-          error: err instanceof Error ? err.message : String(err),
-          emailMasked: maskEmail(cleaned.email),
-        });
-        return NextResponse.json(
-          {
-            ok: false,
-            error:
-              "We couldn't deliver your message right now. Please email contact@shashankjha.in directly, or try again shortly.",
-            requestId,
-          },
-          { status: 502 }
-        );
+        }),
+        text: buildNotificationText({
+          ...cleaned,
+          phone: cleaned.phone,
+          timestampIST,
+          ip,
+          userAgent,
+          requestId,
+        }),
+        headers: { "X-Request-Id": requestId },
+      });
+
+      if (notification.error) {
+        throw new Error(notification.error.message);
       }
-    } else {
-      log.warn("contact.resend_disabled", { requestId });
+      emailMessageId = notification.data?.id ?? null;
+
+      await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: cleaned.email,
+        replyTo: CONTACT_RECIPIENT,
+        subject: "We've received your message — The Chambers of SSJ",
+        react: ContactAcknowledgement({
+          name: cleaned.name,
+          purpose: cleaned.purpose,
+          subject: cleaned.subject,
+          requestId,
+        }),
+        text: buildAckText({
+          name: cleaned.name,
+          purpose: cleaned.purpose,
+          subject: cleaned.subject,
+          requestId,
+        }),
+        headers: { "X-Request-Id": requestId },
+      });
+    } catch (err) {
+      log.error("contact.email_send_failed", {
+        requestId,
+        error: err instanceof Error ? err.message : String(err),
+        emailMasked: maskEmail(cleaned.email),
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "We couldn't deliver your message right now. Please email contact@shashankjha.in directly, or try again shortly.",
+          requestId,
+        },
+        { status: 502 }
+      );
     }
 
     if (submissionId && emailMessageId && hasDatabase) {
