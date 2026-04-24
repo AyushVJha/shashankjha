@@ -5,12 +5,13 @@ module.exports = {
   sitemapSize: 7000,
   changefreq: "weekly",
   priority: 0.7,
+  exclude: ["/admin/*", "/api/*", "/newsletter/confirmed", "/newsletter/unsubscribed"],
   robotsTxtOptions: {
     policies: [
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/health"],
+        disallow: ["/admin/", "/api/"],
       },
     ],
     additionalSitemaps: [],

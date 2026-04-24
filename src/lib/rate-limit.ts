@@ -68,7 +68,7 @@ export function getLimiter(
     };
   }
 
-  if (!warnedNoRedis) {
+  if (!warnedNoRedis && process.env.NEXT_PHASE !== "phase-production-build") {
     console.warn(
       "[rate-limit] UPSTASH_REDIS_* not set — falling back to in-memory limiter (per-instance, resets on deploy)"
     );
