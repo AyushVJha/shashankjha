@@ -1,7 +1,23 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter, Playfair_Display } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const playfairDisplay = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-playfair",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Advocate Shashank Shekhar Jha | Supreme Court of India",
@@ -29,14 +45,6 @@ export const metadata: Metadata = {
     siteName: "Shashank Shekhar Jha",
     locale: "en_IN",
     type: "website",
-    images: [
-      {
-        url: "/images/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Advocate Shashank Shekhar Jha",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -44,7 +52,6 @@ export const metadata: Metadata = {
     description:
       "Supreme Court lawyer, PIL filer, TV panelist. Fighting for constitutional rights and justice.",
     creator: "@shashank_ssj",
-    images: ["/images/og-image.jpg"],
   },
   robots: {
     index: true,
@@ -57,6 +64,10 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0F1724",
 };
 
 const jsonLd = {
@@ -109,10 +120,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className={`scroll-smooth ${inter.variable} ${playfairDisplay.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

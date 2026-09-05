@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import { GraduationCap, Award, Building, MapPin } from "lucide-react";
 
@@ -136,26 +137,25 @@ export default function About() {
             initial={{ opacity: 0, scale: 0.96, x: 20 }}
             animate={isInView ? { opacity: 1, scale: 1, x: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="hidden lg:block sticky top-32"
+            className="relative w-full max-w-xs mx-auto lg:max-w-none lg:mx-0 lg:sticky lg:top-32"
           >
             {/* Decorative frames */}
             <div className="absolute -top-4 -right-4 w-full h-full border-2 border-[var(--gold)] opacity-20 rounded-2xl" />
             <div className="absolute -bottom-3 -left-3 w-full h-full border border-[var(--gold)] opacity-10 rounded-2xl" />
-            
+
             <div className="relative w-full shadow-[0_24px_70px_rgba(26,31,54,0.12)] rounded-2xl overflow-hidden">
               <div className="relative aspect-[3/4] bg-[var(--bg)]">
-                <img
-                  src="/images/shashank-about.jpg"
-                  alt="Advocate Shashank Shekhar Jha"
-                  className="w-full h-full object-cover object-top"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[var(--navy)]/30 via-transparent to-transparent" />
-                <div className="absolute inset-0 bg-[var(--bg-warm)] flex items-center justify-center -z-10">
+                <div className="absolute inset-0 bg-[var(--bg-warm)] flex items-center justify-center">
                   <span className="font-serif text-8xl text-[var(--navy)]/[0.04]">SSJ</span>
                 </div>
+                <Image
+                  src="/images/shashank-about.jpg"
+                  alt="Advocate Shashank Shekhar Jha"
+                  fill
+                  sizes="(min-width: 1024px) 400px, (min-width: 640px) 384px, 90vw"
+                  className="object-cover object-top"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[var(--navy)]/30 via-transparent to-transparent" />
               </div>
             </div>
           </motion.div>

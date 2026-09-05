@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight, ChevronDown } from "lucide-react";
 
@@ -150,7 +151,7 @@ export default function Hero() {
                 delay: 0.3,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="hidden lg:block relative"
+              className="relative w-full max-w-xs mx-auto lg:max-w-none lg:mx-0"
             >
               {/* Gold frame behind */}
               <div className="absolute -top-5 -right-5 w-full h-full border-2 border-[var(--gold)] opacity-15 rounded-[var(--radius-lg)]" />
@@ -158,10 +159,13 @@ export default function Hero() {
 
               <div className="relative rounded-[var(--radius-lg)] overflow-hidden shadow-[0_40px_100px_rgba(15,23,36,0.2)]">
                 <div className="aspect-[3/4] relative bg-[var(--bg-warm)]">
-                  <img
+                  <Image
                     src="/images/shashank-hero.jpg"
                     alt="Advocate Shashank Shekhar Jha"
-                    className="w-full h-full object-cover object-top"
+                    fill
+                    priority
+                    sizes="(min-width: 1024px) 440px, (min-width: 640px) 384px, 90vw"
+                    className="object-cover object-top"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1a]/80 via-[#0a0f1a]/10 to-transparent" />
                 </div>
