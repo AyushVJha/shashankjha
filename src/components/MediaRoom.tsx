@@ -6,10 +6,10 @@ import { news } from "@/data/news";
 import { ExternalLink, Tv, Newspaper, Mic, MessageSquare } from "lucide-react";
 
 const categoryInfo = {
-  Press: { icon: Newspaper, color: "#2563eb" },
-  TV: { icon: Tv, color: "#dc2626" },
-  Interview: { icon: MessageSquare, color: "#059669" },
-  Speaking: { icon: Mic, color: "#7c3aed" },
+  Press: { icon: Newspaper, color: "#4A5B7A" },
+  TV: { icon: Tv, color: "#8B4A4A" },
+  Interview: { icon: MessageSquare, color: "#5B7A5E" },
+  Speaking: { icon: Mic, color: "#6B5B7A" },
 };
 
 export default function MediaRoom() {

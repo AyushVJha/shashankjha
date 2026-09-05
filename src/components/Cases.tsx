@@ -10,17 +10,17 @@ const filters = ["All", "Supreme Court", "High Court", "PIL"];
 function statusInfo(status: string) {
   switch (status) {
     case "Ongoing":
-      return { label: "Active", color: "#16a34a", bg: "#16a34a15", glow: true };
+      return { label: "Active", color: "#5B7A5E", bg: "#5B7A5E15", glow: true };
     case "Filed":
-      return { label: "Pending", color: "#b8963f", bg: "#b8963f15", glow: false };
+      return { label: "Pending", color: "#B8963F", bg: "#B8963F15", glow: false };
     case "Disposed":
-      return { label: "Resolved", color: "#2563eb", bg: "#2563eb15", glow: false };
+      return { label: "Resolved", color: "#4A5B7A", bg: "#4A5B7A15", glow: false };
     case "Landmark":
-      return { label: "Landmark", color: "#9333ea", bg: "#9333ea15", glow: false };
+      return { label: "Landmark", color: "#6B5B7A", bg: "#6B5B7A15", glow: false };
     case "Dismissed":
       return { label: "Concluded", color: "#6b7280", bg: "#6b728015", glow: false };
     case "Withdrawn for refiling":
-      return { label: "Under Review", color: "#ea580c", bg: "#ea580c15", glow: false };
+      return { label: "Under Review", color: "#A66B3F", bg: "#A66B3F15", glow: false };
     default:
       return { label: status, color: "#6b7280", bg: "#6b728015", glow: false };
   }

@@ -5,14 +5,14 @@ import { motion, useInView } from "framer-motion";
 import { Scale, FileText, Shield, Building2, Users, Laptop, Briefcase, Heart } from "lucide-react";
 
 const expertiseItems = [
-  { name: "Public Interest Litigation", desc: "Fighting for constitutional rights at the highest courts of India", Icon: Scale, color: "#b8963f" },
-  { name: "Writ Petitions", desc: "Challenging unjust laws and executive overreach under Article 32 & 226", Icon: FileText, color: "#2563eb" },
-  { name: "Criminal Litigation", desc: "Defense and prosecution across all jurisdictions with strategic advocacy", Icon: Shield, color: "#dc2626" },
-  { name: "Civil Suits", desc: "Complex disputes in property, contracts, torts, and recovery matters", Icon: Building2, color: "#059669" },
-  { name: "Consumer Disputes", desc: "Protecting consumer rights at NCDRC & State Consumer Forums", Icon: Users, color: "#7c3aed" },
-  { name: "Cyber & IT Law", desc: "Digital rights, online defamation, IT Act violations, and data protection", Icon: Laptop, color: "#0891b2" },
-  { name: "Corporate Disputes", desc: "NCLT, insolvency proceedings, and company law matters", Icon: Briefcase, color: "#ea580c" },
-  { name: "Family Law", desc: "Custody battles, divorce proceedings, and matrimonial disputes", Icon: Heart, color: "#be185d" },
+  { name: "Public Interest Litigation", desc: "Fighting for constitutional rights at the highest courts of India", Icon: Scale, color: "#D9BB6C" },
+  { name: "Writ Petitions", desc: "Challenging unjust laws and executive overreach under Article 32 & 226", Icon: FileText, color: "#7B8CAD" },
+  { name: "Criminal Litigation", desc: "Defense and prosecution across all jurisdictions with strategic advocacy", Icon: Shield, color: "#B87373" },
+  { name: "Civil Suits", desc: "Complex disputes in property, contracts, torts, and recovery matters", Icon: Building2, color: "#7FA184" },
+  { name: "Consumer Disputes", desc: "Protecting consumer rights at NCDRC & State Consumer Forums", Icon: Users, color: "#9B8AAD" },
+  { name: "Cyber & IT Law", desc: "Digital rights, online defamation, IT Act violations, and data protection", Icon: Laptop, color: "#6FA3A3" },
+  { name: "Corporate Disputes", desc: "NCLT, insolvency proceedings, and company law matters", Icon: Briefcase, color: "#C79361" },
+  { name: "Family Law", desc: "Custody battles, divorce proceedings, and matrimonial disputes", Icon: Heart, color: "#B77E93" },
 ];
 
 export default function Expertise() {

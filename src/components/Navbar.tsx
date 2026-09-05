@@ -35,19 +35,19 @@ export default function Navbar() {
             : "bg-transparent py-7"
         }`}
       >
-        <div className="container-main flex items-center justify-between">
-          <Link href="/" className="group">
-            <span className="font-serif text-xl font-medium tracking-wide text-[var(--navy)]">
+        <div className="container-main flex items-center justify-between gap-4">
+          <Link href="/" className="group shrink-0">
+            <span className="font-serif text-xl font-medium tracking-wide text-[var(--navy)] whitespace-nowrap">
               The Chambers of <span className="text-[var(--gold)]">SSJ</span>
             </span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-4 lg:gap-8">
             {navLinks.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
-                className="text-[12px] font-sans font-medium tracking-[0.15em] uppercase text-[var(--muted)] hover:text-[var(--navy)] transition-colors duration-300"
+                className="text-[12px] font-sans font-medium tracking-[0.15em] uppercase text-[var(--muted)] hover:text-[var(--navy)] transition-colors duration-300 whitespace-nowrap"
               >
                 {link.label}
               </a>
