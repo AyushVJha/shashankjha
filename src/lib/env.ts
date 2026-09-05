@@ -1,12 +1,14 @@
 import { z } from "zod";
 
 // Coerce empty strings from .env files to undefined so optional fields
-// don't fail validation when the value is intentionally left blank.
+// don't fail validation when the value is intentionally left blank. Also
+// trims whitespace, since dashboard textareas (e.g. Vercel's env var UI)
+// can silently include a trailing newline when a value is pasted in.
 function opt(schema: z.ZodString) {
-  return z.preprocess(
-    (v) => (v === "" || v == null ? undefined : v),
-    schema.optional()
-  );
+  return z.preprocess((v) => {
+    const trimmed = typeof v === "string" ? v.trim() : v;
+    return trimmed === "" || trimmed == null ? undefined : trimmed;
+  }, schema.optional());
 }
 
 const envSchema = z.object({
